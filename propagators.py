@@ -82,7 +82,8 @@ def prop_FC(csp, newVar=None):
        track of all pruned variable,value pairs and return '''
 
     prune = []
-    # check all constraints if newVar is None
+
+    # check all constraints if newVar is not None
     if not newVar:
         cons = csp.get_all_cons()
     else:
@@ -90,28 +91,18 @@ def prop_FC(csp, newVar=None):
 
     for c in cons:
         if c.get_n_unasgn() == 1:
-            unasgn_var = c.get_unasgn_vars()[0]  # get only unassigned variable
+            var = c.get_unasgn_vars()[0]  # get only unassigned variable
             # check each value in this unassigned variable and prune all values that falsify c
-            for val in unasgn_var.cur_domain():
-                vals = []
-                vars = c.get_scope()
-                # make list of values to check
-                for var in vars:
-                    # append our test val here
-                    if var == unasgn_var:
-                        vals.append(val)
-                    # these variables already have been assigned
-                    else:
-                        vals.append(var.get_assigned_value())
-                # check if these values satisfy the constraint c
-                if not c.check(vals):
+            for val in var.cur_domain():
+                # check if assigning val to var satisfies constraint c
+                if not c.has_support(var, val):
                     # prune this value from unassigned variable's domain
-                    if (unasgn_var, val) not in prune:
-                        prune.append((unasgn_var, val))
-                        unasgn_var.prune_value(val)
-            # check if unassigned variable still has values in its domain
-            if unasgn_var.cur_domain_size() == 0:
-                return False, prune
+                    if (var, val) not in prune:
+                        prune.append((var, val))
+                        var.prune_value(val)
+                    # check if unassigned variable still has values in its domain
+                    if var.cur_domain_size() == 0:
+                        return False, prune
 
     return True, prune
 
@@ -119,5 +110,41 @@ def prop_GAC(csp, newVar=None):
     '''Do GAC propagation. If newVar is None we do initial GAC enforce 
        processing all constraints. Otherwise we do GAC enforce with
        constraints containing newVar on GAC Queue'''
-    return True, []
-#IMPLEMENT
+
+    prune = []
+
+    # check all constraints if newVar is not None
+    if not newVar:
+        GAC_queue = csp.get_all_cons()
+    else:
+        GAC_queue = csp.get_cons_with_var(newVar)
+
+    # loop while GAC_queue is not empty
+    while GAC_queue:
+        c = GAC_queue.pop(0)  # pop the first item in the queue (append items at end)
+        # check each variable in constraint c's scope
+        for var in c.get_scope():
+            # check if assigning val to var has at least one set of variable assignments that will satisfy c
+            for val in var.cur_domain():
+                # check if there is a support for the assignment of val to var
+                if not c.has_support(var, val):
+                    # no support, so prune val from var's domain
+                    if (var, val) not in prune:
+                        prune.append((var, val))
+                        var.prune_value(val)
+                    # domain wipe out if all values of var's domain have been pruned
+                    if var.cur_domain_size() == 0:
+                        return False, prune
+                    # append constraints that are affected by var to GAC_queue and are not already in GAC_queue
+                    else:
+                        for c_2 in csp.get_cons_with_var(var):
+                            if c_2 not in GAC_queue:
+                                GAC_queue.append(c_2)
+
+    return True, prune
+
+
+
+
+
+
