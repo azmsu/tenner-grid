@@ -64,8 +64,75 @@ def tenner_csp_model_1(initial_tenner_board):
        model_1 also constains n-nary constraints of sum constraints for each 
        column.
     '''
-    
-#IMPLEMENT
+
+    # initial CSP
+    csp = CSP('tenner_csp')
+
+    var_array = []
+
+    n_grid = initial_tenner_board[0]
+    last_row = initial_tenner_board[1]
+    rows = len(n_grid)
+
+    bin_tup = []
+    for i in range(10):
+        for j in range(10):
+            if i != j:
+                bin_tup += [(i, j)]
+
+    for i in range(rows):
+        var_array += [[]]
+        for j in range(10):
+            # check domain of cell i, j
+            if n_grid[i][j] == -1:
+                dom = list(range(10))
+            else:
+                dom = [n_grid[i][j]]
+
+            # create variables
+            var = Variable('v'+str(i)+str(j), dom)
+            var_array[i] += [var]
+            csp.add_var(var)
+
+    # create binary constraints
+    for i in range(rows):
+        for j in range(10):
+            # create constraints for neighbours of cell i,j that are >= i and one neighbour that is (i, j+1)
+            print('---',i,j)
+            for r in range(i, min(i+2, rows)):
+                for c in range(max(0, j-1), 10):
+                    if r == i and (c == j or c == j-1):
+                        continue
+                    if r == i:
+                        scope = [var_array[i][j], var_array[r][c]]
+                        print('ij', r, c)
+                    elif r == i+1 and c > j+1:
+                        break
+                    else:
+                        scope = [var_array[i][j], var_array[r][c]]
+                        print('ij', r, c)
+
+                    con = Constraint('c'+str(i)+str(j), scope)
+                    con.add_satisfying_tuples(bin_tup)
+                    csp.add_constraint(con)
+
+    # create sum constraints
+    for j in range(10):
+        scope = []
+        s = last_row[j]
+        for i in range(rows):
+            scope += [var_array[i][j]]
+        con = Constraint('c'+str(j), scope)
+        sum_tup = []
+        for t in itertools.product(range(10), repeat=rows):
+            if sum(t) == s:
+                sum_tup += [t]
+
+        con.add_satisfying_tuples(sum_tup)
+        csp.add_constraint(con)
+
+    print('done')
+    return csp, var_array
 
 ##############################
 
@@ -110,4 +177,79 @@ def tenner_csp_model_2(initial_tenner_board):
        variables.
     '''
 
-#IMPLEMENT
+    # initial CSP
+    csp = CSP('tenner_csp')
+
+    var_array = []
+
+    n_grid = initial_tenner_board[0]
+    last_row = initial_tenner_board[1]
+    rows = len(n_grid)
+
+    bin_tup = []
+    for i in range(10):
+        for j in range(10):
+            if i != j:
+                bin_tup += [(i, j)]
+
+    for i in range(rows):
+        var_array += [[]]
+        for j in range(10):
+            # check domain of cell i, j
+            if n_grid[i][j] == -1:
+                dom = list(range(10))
+            else:
+                dom = [n_grid[i][j]]
+
+            # create variables
+            var = Variable('v'+str(i)+str(j), dom)
+            var_array[i] += [var]
+            csp.add_var(var)
+
+    # create binary constraints
+    for i in range(rows):
+        for j in range(10):
+            # create constraints for neighbours of cell i,j that are >= i and one neighbour that is (i, j+1)
+            print('---',i,j)
+            for r in range(i, min(i+2, rows)):
+                for c in range(max(0, j-1), min(j+2, 10)):
+                    if r == i and (c == j or c == j-1):
+                        continue
+
+                    scope = [var_array[i][j], var_array[r][c]]
+                    print('ij', r, c)
+
+                    con = Constraint('c'+str(i)+str(j), scope)
+                    con.add_satisfying_tuples(bin_tup)
+                    csp.add_constraint(con)
+
+    nary_tup = []
+    for t in itertools.permutations(range(10)):
+        nary_tup += [t]
+
+    # create n-ary all-different constraints
+    for i in range(rows):
+        scope = []
+        for j in range(10):
+            scope += [var_array[i][j]]
+        con = Constraint('cr'+str(i), scope)
+        con.add_satisfying_tuples(nary_tup)
+        csp.add_constraint(con)
+
+    # create sum constraints
+    for j in range(10):
+        scope = []
+        s = last_row[j]
+        for i in range(rows):
+            scope += [var_array[i][j]]
+        con = Constraint('cc'+str(j), scope)
+        sum_tup = []
+        for t in itertools.product(range(10), repeat=rows):
+            if sum(t) == s:
+                sum_tup += [t]
+
+        con.add_satisfying_tuples(sum_tup)
+        csp.add_constraint(con)
+
+    print('done')
+    return csp, var_array
