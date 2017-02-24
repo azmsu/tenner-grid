@@ -8,6 +8,20 @@ Construct and return Tenner Grid CSP models.
 from cspbase import *
 import itertools
 
+def get_bin_sat_tuples(dom1, dom2):
+    '''Return the binary not-equal satisfying tuples for two variables
+       with domains dom1 and dom2.
+    '''
+
+    bin_tup = []
+    for i in dom1:
+        for j in dom2:
+            if i != j:
+                bin_tup += [(i, j)]
+
+    return bin_tup
+
+
 def tenner_csp_model_1(initial_tenner_board):
     '''Return a CSP object representing a Tenner Grid CSP problem along 
        with an array of variables for the problem. That is return
@@ -74,12 +88,6 @@ def tenner_csp_model_1(initial_tenner_board):
     last_row = initial_tenner_board[1]
     rows = len(n_grid)
 
-    bin_tup = []
-    for i in range(10):
-        for j in range(10):
-            if i != j:
-                bin_tup += [(i, j)]
-
     for i in range(rows):
         var_array += [[]]
         for j in range(10):
@@ -95,43 +103,54 @@ def tenner_csp_model_1(initial_tenner_board):
             csp.add_var(var)
 
     # create binary constraints
+    count = 0
     for i in range(rows):
         for j in range(10):
             # create constraints for neighbours of cell i,j that are >= i and one neighbour that is (i, j+1)
-            print('---',i,j)
+            # print('---',i,j)
             for r in range(i, min(i+2, rows)):
                 for c in range(max(0, j-1), 10):
                     if r == i and (c == j or c == j-1):
                         continue
                     if r == i:
                         scope = [var_array[i][j], var_array[r][c]]
-                        print('ij', r, c)
+                        bin_tup = get_bin_sat_tuples(var_array[i][j].domain(), var_array[r][c].domain())
+                        # print('ij', r, c)
                     elif r == i+1 and c > j+1:
                         break
                     else:
                         scope = [var_array[i][j], var_array[r][c]]
-                        print('ij', r, c)
+                        bin_tup = get_bin_sat_tuples(var_array[i][j].domain(), var_array[r][c].domain())
+                        # print('ij', r, c)
 
-                    con = Constraint('c'+str(i)+str(j), scope)
+                    con = Constraint('c'+str(count), scope)
                     con.add_satisfying_tuples(bin_tup)
                     csp.add_constraint(con)
+                    count += 1
 
     # create sum constraints
     for j in range(10):
         scope = []
+        args = []
         s = last_row[j]
         for i in range(rows):
             scope += [var_array[i][j]]
+            if n_grid[i][j] == -1:
+                args += [range(10)]
+            else:
+                args += [[n_grid[i][j]]]
+        # pad with 0s until we have 8 arguments (max number of rows possible)
+        args += (8 - rows)*[[0]]
         con = Constraint('c'+str(j), scope)
         sum_tup = []
-        for t in itertools.product(range(10), repeat=rows):
+        for t in itertools.product(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]):
             if sum(t) == s:
-                sum_tup += [t]
+                # make sure to remove padded zeros
+                sum_tup += [t[:rows]]
 
         con.add_satisfying_tuples(sum_tup)
         csp.add_constraint(con)
 
-    print('done')
     return csp, var_array
 
 ##############################
@@ -186,12 +205,6 @@ def tenner_csp_model_2(initial_tenner_board):
     last_row = initial_tenner_board[1]
     rows = len(n_grid)
 
-    bin_tup = []
-    for i in range(10):
-        for j in range(10):
-            if i != j:
-                bin_tup += [(i, j)]
-
     for i in range(rows):
         var_array += [[]]
         for j in range(10):
@@ -207,31 +220,42 @@ def tenner_csp_model_2(initial_tenner_board):
             csp.add_var(var)
 
     # create binary constraints
-    for i in range(rows):
+    count = 0
+    for i in range(rows - 1):
         for j in range(10):
             # create constraints for neighbours of cell i,j that are >= i and one neighbour that is (i, j+1)
-            print('---',i,j)
-            for r in range(i, min(i+2, rows)):
-                for c in range(max(0, j-1), min(j+2, 10)):
-                    if r == i and (c == j or c == j-1):
-                        continue
+            # print('---',i,j)
+            for c in range(max(0, j-1), min(j+2, 10)):
 
-                    scope = [var_array[i][j], var_array[r][c]]
-                    print('ij', r, c)
+                scope = [var_array[i][j], var_array[i+1][c]]
+                bin_tup = get_bin_sat_tuples(var_array[i][j].domain(), var_array[i+1][c].domain())
+                # print('ij', i+1, c)
 
-                    con = Constraint('c'+str(i)+str(j), scope)
-                    con.add_satisfying_tuples(bin_tup)
-                    csp.add_constraint(con)
-
-    nary_tup = []
-    for t in itertools.permutations(range(10)):
-        nary_tup += [t]
+                con = Constraint('c'+str(count), scope)
+                con.add_satisfying_tuples(bin_tup)
+                csp.add_constraint(con)
+                count += 1
 
     # create n-ary all-different constraints
     for i in range(rows):
+        nary_tup = []
         scope = []
+        indices = []
         for j in range(10):
             scope += [var_array[i][j]]
+            if n_grid[i][j] == -1:
+                continue
+            else:
+                # indices stores the index of non -1 values
+                indices += [j]
+        for t in itertools.permutations(range(10)):
+            valid = True
+            for index in indices:
+                if t[index] != n_grid[i][index]:
+                    valid = False
+                    break
+            if valid:
+                nary_tup += [t]
         con = Constraint('cr'+str(i), scope)
         con.add_satisfying_tuples(nary_tup)
         csp.add_constraint(con)
@@ -239,17 +263,24 @@ def tenner_csp_model_2(initial_tenner_board):
     # create sum constraints
     for j in range(10):
         scope = []
+        args = []
         s = last_row[j]
         for i in range(rows):
             scope += [var_array[i][j]]
-        con = Constraint('cc'+str(j), scope)
+            if n_grid[i][j] == -1:
+                args += [range(10)]
+            else:
+                args += [[n_grid[i][j]]]
+        # pad with 0s until we have 8 arguments (max number of rows possible)
+        args += (8 - rows)*[[0]]
+        con = Constraint('c'+str(j), scope)
         sum_tup = []
-        for t in itertools.product(range(10), repeat=rows):
+        for t in itertools.product(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]):
             if sum(t) == s:
-                sum_tup += [t]
+                # make sure to remove padded zeros
+                sum_tup += [t[:rows]]
 
         con.add_satisfying_tuples(sum_tup)
         csp.add_constraint(con)
 
-    print('done')
     return csp, var_array
